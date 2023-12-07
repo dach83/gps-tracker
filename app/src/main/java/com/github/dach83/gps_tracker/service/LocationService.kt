@@ -72,7 +72,7 @@ class LocationService : Service() {
             }
             .launchIn(serviceScope)
 
-        startForeground(1, notification.build())˚
+        startForeground(1, notification.build())
     }
 
     private fun stopLocationService() {

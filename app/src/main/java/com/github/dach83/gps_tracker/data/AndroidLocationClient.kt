@@ -43,7 +43,7 @@ class AndroidLocationClient(
             override fun onLocationResult(result: LocationResult) {
                 super.onLocationResult(result)
                 result.locations.lastOrNull()?.let {
-                    launch { send(it) }
+                    trySend(it)
                 }
             }
         }
