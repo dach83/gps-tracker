@@ -15,7 +15,7 @@ class MainViewModel(
     store: LocationStore
 ) : ViewModel() {
 
-    var location: SharedLocation? by mutableStateOf(null)
+    var location: SharedLocation? by mutableStateOf(store.lastLocation)
         private set
 
     init {
