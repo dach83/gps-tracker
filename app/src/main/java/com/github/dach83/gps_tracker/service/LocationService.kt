@@ -10,6 +10,8 @@ import androidx.core.app.NotificationCompat
 import com.github.dach83.gps_tracker.R
 import com.github.dach83.gps_tracker.data.AndroidLocationClient
 import com.github.dach83.gps_tracker.domain.LocationClient
+import com.github.dach83.gps_tracker.domain.LocationStore
+import com.github.dach83.gps_tracker.domain.errors.LocationException
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,22 +20,23 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.retryWhen
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
-class LocationService : Service() {
+class LocationService : Service(), KoinComponent {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var locationClient: LocationClient
-
-    override fun onBind(intent: Intent): IBinder? {
-        return null
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        locationClient = AndroidLocationClient(
+    private val locationClient: LocationClient by lazy {
+        AndroidLocationClient(
             context = applicationContext,
             client = LocationServices.getFusedLocationProviderClient(applicationContext)
         )
+    }
+    private val locationStore: LocationStore by inject()
+
+    override fun onBind(intent: Intent): IBinder? {
+        return null
     }
 
     override fun onDestroy() {
@@ -50,8 +53,6 @@ class LocationService : Service() {
     }
 
     private fun startLocationService() {
-        Log.d("@@@", "startLocationService: ")
-
         val notification = NotificationCompat.Builder(this, "location")
             .setContentTitle("Tracking location")
             .setContentText("Location is ...")
@@ -61,29 +62,31 @@ class LocationService : Service() {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        locationClient.getLocationUpdates(10_000L)
+        locationClient.getLocationUpdates(REQUEST_INTERVAL_MS)
+            .retryWhen { cause, _ -> cause is LocationException }
             .catch { error -> error.printStackTrace() }
             .onEach { location ->
                 val lat = location.latitude.toString()
                 val long = location.longitude.toString()
-                Log.d("@@@", "startLocationService: $lat  $long ")
                 val updatedNotification = notification.setContentText("Location is $lat, $long")
-                notificationManager.notify(1, updatedNotification.build())
+                notificationManager.notify(SERVICE_ID, updatedNotification.build())
+                locationStore.lastLocation = location
+                Log.d("@@@", "startLocationService: $location")
             }
             .launchIn(serviceScope)
 
-        startForeground(1, notification.build())
+        startForeground(SERVICE_ID, notification.build())
     }
 
     private fun stopLocationService() {
-        Log.d("@@@", "stopLocationService: ")
-
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
 
     companion object {
+        const val SERVICE_ID = 1
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
+        const val REQUEST_INTERVAL_MS = 10000L
     }
 }

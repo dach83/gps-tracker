@@ -7,17 +7,19 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Looper
-import android.util.Log
 import androidx.core.content.ContextCompat
 import com.github.dach83.gps_tracker.domain.LocationClient
+import com.github.dach83.gps_tracker.domain.errors.LocationException
+import com.github.dach83.gps_tracker.domain.model.SharedLocation
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.launch
 
 class AndroidLocationClient(
     private val context: Context,
@@ -25,37 +27,36 @@ class AndroidLocationClient(
 ) : LocationClient {
 
     @SuppressLint("MissingPermission")
-    override fun getLocationUpdates(interval: Long): Flow<Location> = callbackFlow {
-        if (!hasLocationPermission) {
-            throw LocationClient.LocationException("Location permissions not granted")
+    override fun getLocationUpdates(timeInterval: Long): Flow<SharedLocation> = callbackFlow {
+        if (!hasLocationPermissions) {
+            throw LocationException("Location permissions not granted")
+        }
+        if (!hasLocationProviders()) {
+            throw LocationException("Location providers is disabled")
         }
 
-        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-        if (!isGpsEnabled && !isNetworkEnabled) {
-            throw LocationClient.LocationException("Location providers is disabled")
-        }
-
-        val request = LocationRequest.Builder(interval)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, timeInterval)
+            // setMinUpdateDistanceMeters(minimalDistance)
+            .setGranularity(Granularity.GRANULARITY_PERMISSION_LEVEL)
+            .setWaitForAccurateLocation(true)
             .build()
+
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 super.onLocationResult(result)
-                result.locations.lastOrNull()?.let {
-                    trySend(it)
+                result.lastLocation?.let {
+                    trySend(it.toSharedLocation())
                 }
             }
         }
 
         client.requestLocationUpdates(request, callback, Looper.getMainLooper())
-
         awaitClose {
             client.removeLocationUpdates(callback)
         }
     }
 
-    private val hasLocationPermission
+    private val hasLocationPermissions
         get() = listOf(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION
@@ -64,4 +65,16 @@ class AndroidLocationClient(
         }.all { permissionStatus ->
             permissionStatus == PackageManager.PERMISSION_GRANTED
         }
+
+    private fun hasLocationProviders(): Boolean {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        return isGpsEnabled || isNetworkEnabled
+    }
+
+    private fun Location.toSharedLocation() = SharedLocation(
+        latitude = latitude,
+        longitude = longitude
+    )
 }

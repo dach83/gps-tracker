@@ -61,6 +61,11 @@ dependencies {
     implementation("androidx.compose.material3:material3")
 
     implementation("com.google.android.gms:play-services-location:21.0.1")
+    implementation("com.yandex.android:maps.mobile:4.4.0-lite")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    implementation("io.insert-koin:koin-android:3.5.0")
+    implementation("io.insert-koin:koin-androidx-navigation:3.5.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
