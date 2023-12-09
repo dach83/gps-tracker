@@ -1,17 +1,18 @@
 package com.github.dach83.gps_tracker.service
 
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.github.dach83.gps_tracker.R
 import com.github.dach83.gps_tracker.data.AndroidLocationClient
 import com.github.dach83.gps_tracker.domain.LocationClient
 import com.github.dach83.gps_tracker.domain.LocationStore
 import com.github.dach83.gps_tracker.domain.errors.LocationException
+import com.github.dach83.gps_tracker.presentation.MainActivity
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +59,7 @@ class LocationService : Service(), KoinComponent {
             .setContentText("Location is ...")
             .setSmallIcon(R.drawable.ic_launcher_background)
             .setOngoing(true)
+            .setContentIntent(mainActivityPendingIntent())
 
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -71,7 +73,6 @@ class LocationService : Service(), KoinComponent {
                 val updatedNotification = notification.setContentText("Location is $lat, $long")
                 notificationManager.notify(SERVICE_ID, updatedNotification.build())
                 locationStore.lastLocation = location
-                Log.d("@@@", "startLocationService: $location")
             }
             .launchIn(serviceScope)
 
@@ -83,10 +84,20 @@ class LocationService : Service(), KoinComponent {
         stopSelf()
     }
 
+    private fun mainActivityPendingIntent(): PendingIntent {
+        val intent = Intent(applicationContext, MainActivity::class.java)
+        return PendingIntent.getActivity(
+            applicationContext,
+            0,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
     companion object {
         const val SERVICE_ID = 1
         const val ACTION_START = "ACTION_START"
         const val ACTION_STOP = "ACTION_STOP"
-        const val REQUEST_INTERVAL_MS = 10000L
+        const val REQUEST_INTERVAL_MS = 2000L
     }
 }
